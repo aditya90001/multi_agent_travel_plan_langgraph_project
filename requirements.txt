@@ -1,0 +1,39 @@
+# Backend Framework
+fastapi
+uvicorn[standard]
+
+# Validation & ORM
+pydantic
+sqlalchemy
+
+# LangChain Ecosystem
+langchain
+langchain-community
+langchain-openai
+langchain-groq
+langchain-huggingface
+langgraph
+langgraph-checkpoint-postgres
+
+# Tavily Search
+langchain-tavily
+tavily-python
+
+# PostgreSQL
+psycopg[binary]
+psycopg_pool
+
+# Environment Variables
+python-dotenv
+
+# API Requests
+requests
+
+# UI
+streamlit
+
+# Optional Utilities
+httpx
+aiofiles
+jinja2
+python-multipart
