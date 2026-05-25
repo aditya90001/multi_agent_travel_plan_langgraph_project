@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: ai-travel-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend:api --host 0.0.0.0 --port 10000
