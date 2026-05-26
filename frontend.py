@@ -1,11 +1,7 @@
-# Corrected `app.py` (Streamlit Frontend)
-
-
 import os
+import requests
 import streamlit as st
 from datetime import datetime
-from langchain_core.messages import HumanMessage
-from main import app
 
 # ─────────────────────────────────────────────────────────────
 # PAGE CONFIG
@@ -16,21 +12,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ─────────────────────────────────────────────────────────────
-# ENV VALIDATION
-# ─────────────────────────────────────────────────────────────
-required_env = [
-    "DATABASE_URL",
-    "GROQ_API_KEY",
-    "TAVILY_API_KEY",
-    "AVIATIONSTACK_API_KEY"
-]
-
-missing = [key for key in required_env if not os.getenv(key)]
-
-if missing:
-    st.error(f"Missing environment variables: {', '.join(missing)}")
-    st.stop()
+API_URL = "https://multi-agent-travel-plan-langgraph.onrender.com/generate-trip"
 
 # ─────────────────────────────────────────────────────────────
 # CUSTOM CSS
@@ -79,27 +61,6 @@ st.markdown(
         color: #dbeafe;
         line-height: 1.8;
     }
-
-    .stTextArea textarea {
-        background: #0f172a !important;
-        color: white !important;
-        border-radius: 12px !important;
-        border: 1px solid #1e293b !important;
-    }
-
-    div[data-testid="stButton"] > button {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        height: 3.2rem;
-        font-weight: bold;
-        width: 100%;
-    }
-
-    div[data-testid="stButton"] > button:hover {
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-    }
     </style>
     """,
     unsafe_allow_html=True
@@ -109,52 +70,23 @@ st.markdown(
 # SIDEBAR
 # ─────────────────────────────────────────────────────────────
 with st.sidebar:
+
     st.title("🌍 AI Travel Planner")
 
     thread_id = st.text_input(
         "User Session ID",
-        value="user_aarohi"
+        value="aditya_singh"
     )
 
-    st.markdown("---")
-
-    st.subheader("⚙️ Tech Stack")
-
-    techs = [
-        "LangGraph",
-        "Groq Llama 3.3 70B",
-        "PostgreSQL",
-        "Tavily Search",
-        "AviationStack"
-    ]
-
-    for tech in techs:
-        st.markdown(f"- {tech}")
-
-    st.markdown("---")
-
-    st.subheader("🤖 Agent Workflow")
-
-    workflow = [
-        "Flight Agent",
-        "Hotel Agent",
-        "Itinerary Agent",
-        "Final Agent"
-    ]
-
-    for step in workflow:
-        st.markdown(f"✅ {step}")
-
 # ─────────────────────────────────────────────────────────────
-# HERO SECTION
+# HERO
 # ─────────────────────────────────────────────────────────────
 st.markdown(
     """
     <div class="hero">
         <h1>✈️ AI Travel Booking System</h1>
         <p>
-            Multi-agent travel planning using LangGraph, Groq, Tavily,
-            PostgreSQL memory and live agent orchestration.
+            Multi-agent travel planning using LangGraph + Groq
         </p>
     </div>
     """,
@@ -162,50 +94,18 @@ st.markdown(
 )
 
 # ─────────────────────────────────────────────────────────────
-# QUICK PROMPTS
-# ─────────────────────────────────────────────────────────────
-quick_prompts = [
-    "Plan a 5 day Dubai trip",
-    "Tokyo trip under ₹2 lakhs",
-    "Bali backpacking itinerary",
-    "Paris honeymoon trip"
-]
-
-cols = st.columns(len(quick_prompts))
-selected_prompt = ""
-
-for col, prompt in zip(cols, quick_prompts):
-    with col:
-        if st.button(prompt):
-            selected_prompt = prompt
-
-# ─────────────────────────────────────────────────────────────
 # USER INPUT
 # ─────────────────────────────────────────────────────────────
 user_query = st.text_area(
     "Describe your travel plan",
-    value=selected_prompt,
-    placeholder="Example: Plan a complete 7-day Japan trip including flights, hotels and sightseeing under ₹2 lakhs",
+    placeholder="Example: Plan a 5-day Bali trip under ₹1 lakh",
     height=120
 )
 
-# ─────────────────────────────────────────────────────────────
-# GENERATE BUTTON
-# ─────────────────────────────────────────────────────────────
 generate = st.button("🚀 Generate Travel Plan")
 
 # ─────────────────────────────────────────────────────────────
-# AGENT LABELS
-# ─────────────────────────────────────────────────────────────
-AGENT_META = {
-    "flight_agent": "✈️ Flight Agent",
-    "hotel_agent": "🏨 Hotel Agent",
-    "itinerary_agent": "🗓️ Itinerary Agent",
-    "final_agent": "🧠 Final Agent"
-}
-
-# ─────────────────────────────────────────────────────────────
-# MAIN EXECUTION
+# GENERATE
 # ─────────────────────────────────────────────────────────────
 if generate:
 
@@ -213,227 +113,112 @@ if generate:
         st.warning("Please enter your travel request.")
         st.stop()
 
-    config = {
-        "configurable": {
-            "thread_id": thread_id
-        }
+    payload = {
+        "user_query": user_query,
+        "thread_id": thread_id
     }
-
-    collected = {
-        "flight_results": "",
-        "hotel_results": "",
-        "itinerary": "",
-        "final_response": "",
-        "llm_calls": 0
-    }
-
-    st.markdown("---")
-    st.subheader("🤖 Live Agent Execution")
 
     try:
 
-        with st.spinner("Agents are planning your trip..."):
+        with st.spinner("Generating AI travel plan..."):
 
-            for chunk in app.stream(
-                {
-                    "messages": [HumanMessage(content=user_query)],
-                    "user_query": user_query,
-                    "flight_results": "",
-                    "hotel_results": "",
-                    "itinerary": "",
-                    "llm_calls": 0
-                },
-                config=config,
-                stream_mode="updates"
-            ):
+            response = requests.post(
+                API_URL,
+                json=payload,
+                timeout=300
+            )
 
-                for node_name, state_update in chunk.items():
+        if response.status_code != 200:
+            st.error(f"API Error: {response.text}")
+            st.stop()
 
-                    label = AGENT_META.get(node_name, node_name)
+        data = response.json()
 
-                    with st.status(label, expanded=True):
+        # ─────────────────────────────────────────────────────
+        # METRICS
+        # ─────────────────────────────────────────────────────
+        st.markdown("---")
 
-                        if node_name == "flight_agent":
+        c1, c2, c3 = st.columns(3)
 
-                            text = state_update.get(
-                                "flight_results",
-                                "No flight data found"
-                            )
+        with c1:
+            st.markdown(
+                """
+                <div class="metric-card">
+                    <h2>4</h2>
+                    <p>Agents Executed</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                            collected["flight_results"] = text
+        with c2:
+            st.markdown(
+                f"""
+                <div class="metric-card">
+                    <h2>{data['llm_calls']}</h2>
+                    <p>LLM Calls</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                            st.markdown(text)
+        with c3:
+            st.markdown(
+                """
+                <div class="metric-card">
+                    <h2>✅</h2>
+                    <p>Status</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                        elif node_name == "hotel_agent":
+        # ─────────────────────────────────────────────────────
+        # FLIGHTS
+        # ─────────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("✈️ Flight Information")
+        st.markdown(data["flight_results"])
 
-                            text = state_update.get(
-                                "hotel_results",
-                                "No hotel data found"
-                            )
+        # ─────────────────────────────────────────────────────
+        # HOTELS
+        # ─────────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("🏨 Hotel Information")
+        st.markdown(data["hotel_results"])
 
-                            collected["hotel_results"] = text
+        # ─────────────────────────────────────────────────────
+        # ITINERARY
+        # ─────────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("🗓️ Itinerary")
+        st.markdown(data["itinerary"])
 
-                            st.markdown(text)
-
-                        elif node_name == "itinerary_agent":
-
-                            text = state_update.get(
-                                "itinerary",
-                                "No itinerary generated"
-                            )
-
-                            collected["itinerary"] = text
-
-                            st.markdown(text)
-
-                        elif node_name == "final_agent":
-
-                            msgs = state_update.get("messages", [])
-
-                            if msgs:
-                                text = msgs[-1].content
-                            else:
-                                text = "No final response generated"
-
-                            collected["final_response"] = text
-
-                            st.markdown(text)
-
-                        collected["llm_calls"] = state_update.get(
-                            "llm_calls",
-                            collected["llm_calls"]
-                        )
-
-    except Exception as e:
-        st.error(f"Application Error: {str(e)}")
-        st.stop()
-
-    # ─────────────────────────────────────────────────────────
-    # METRICS
-    # ─────────────────────────────────────────────────────────
-    st.markdown("---")
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.markdown(
-            """
-            <div class="metric-card">
-                <h2>4</h2>
-                <p>Agents Executed</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with c2:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <h2>{collected['llm_calls']}</h2>
-                <p>LLM Calls</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with c3:
-        st.markdown(
-            """
-            <div class="metric-card">
-                <h2>✅</h2>
-                <p>Status</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    # ─────────────────────────────────────────────────────────
-    # FINAL RESPONSE
-    # ─────────────────────────────────────────────────────────
-    if collected["final_response"]:
-
+        # ─────────────────────────────────────────────────────
+        # FINAL RESPONSE
+        # ─────────────────────────────────────────────────────
         st.markdown("---")
         st.subheader("🧠 Final Travel Plan")
 
         st.markdown(
             f"""
             <div class="final-box">
-                {collected['final_response']}
+                {data['final_response']}
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    # ─────────────────────────────────────────────────────────
-    # SAVE FILE
-    # ─────────────────────────────────────────────────────────
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # ─────────────────────────────────────────────────────
+        # DOWNLOAD
+        # ─────────────────────────────────────────────────────
+        st.download_button(
+            "⬇️ Download Travel Plan",
+            data=data["final_response"],
+            file_name=data["saved_file"],
+            mime="text/markdown"
+        )
 
-    filename = f"travel_plan_{timestamp}.md"
-
-    save_dir = os.path.join(
-        os.path.dirname(__file__),
-        "travel_plans"
-    )
-
-    os.makedirs(save_dir, exist_ok=True)
-
-    file_content = f"""
-# Travel Plan
-
-## Query
-{user_query}
-
-## Generated
-{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-## User ID
-{thread_id}
-
----
-
-# Flight Information
-
-{collected['flight_results']}
-
----
-
-# Hotel Information
-
-{collected['hotel_results']}
-
----
-
-# Itinerary
-
-{collected['itinerary']}
-
----
-
-# Final Travel Plan
-
-{collected['final_response']}
-
----
-
-LLM Calls: {collected['llm_calls']}
-"""
-
-    with open(
-        os.path.join(save_dir, filename),
-        "w",
-        encoding="utf-8"
-    ) as f:
-        f.write(file_content)
-
-    st.download_button(
-        "⬇️ Download Travel Plan",
-        data=file_content,
-        file_name=filename,
-        mime="text/markdown"
-    )
-
-    st.success(
-        f"Travel plan saved successfully in travel_plans/{filename}"
-    )
+    except Exception as e:
+        st.error(f"Application Error: {str(e)}")
